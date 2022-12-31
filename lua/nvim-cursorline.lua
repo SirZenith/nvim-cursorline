@@ -11,6 +11,10 @@ local M = {
     options = nil,
 }
 
+local function log(msg)
+    vim.notify("[nvim-cursorline]: " .. msg)
+end
+
 ---@param byte? integer
 ---@return boolean
 local function check_is_word(byte)
@@ -200,23 +204,30 @@ function M.setup(options)
     M._augroup_id = augroup_id
 
     local disable_in_mode = options.disable_in_mode
-    vim.api.nvim_create_autocmd("ModeChanged", {
-        group = augroup_id,
-        pattern = "*:" .. disable_in_mode,
-        callback = function()
-            M._is_disabled = true
-            M.set_all_hl(false)
-        end
-    })
-    vim.api.nvim_create_autocmd("ModeChanged", {
-        group = augroup_id,
-        pattern = disable_in_mode .. ":*",
-        callback = function()
-            M._is_disabled = false
-            M.set_all_hl(true)
-        end
-    })
-
+    if type(disable_in_mode) ~= "string" then
+        log(
+            "`disable_in_mode` takes only string value (got "
+            .. type(disable_in_mode)
+            .. ")"
+        )
+    elseif #disable_in_mode ~= 0 then
+        vim.api.nvim_create_autocmd("ModeChanged", {
+            group = augroup_id,
+            pattern = "*:" .. disable_in_mode,
+            callback = function()
+                M._is_disabled = true
+                M.set_all_hl(false)
+            end
+        })
+        vim.api.nvim_create_autocmd("ModeChanged", {
+            group = augroup_id,
+            pattern = disable_in_mode .. ":*",
+            callback = function()
+                M._is_disabled = false
+                M.set_all_hl(true)
+            end
+        })
+    end
     for group, config in pairs(options) do
         if type(config) == "table" and config.enable then
             local hl = config.hl
@@ -228,7 +239,7 @@ function M.setup(options)
             local hl_clear_func = config.hl_clear_func
 
             if not (hl_func and hl_clear_func) then
-                vim.notify(
+                log(
                     "hl_func or hl_clear_func is not given for group: "
                     .. group
                 )

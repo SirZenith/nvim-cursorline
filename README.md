@@ -9,7 +9,6 @@ Install with you preferred plugin manager, for example with
 [packer.nvim](https://github.com/wbthomason/packer.nvim):
 
 ```lua
-
 require("packer").startup(function(use)
     use "SirZenith/nvim-cursorline"
 end)
@@ -54,6 +53,9 @@ local config = {
     },
 }
 ```
+
+`disable_in_mode` specifies modes where all highlight should be off. This is a
+string pattern used for autocmd, for detail, see `:help ModeChanged` and `:help mode()`.
 
 ## Customize
 
