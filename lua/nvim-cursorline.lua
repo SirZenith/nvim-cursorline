@@ -16,8 +16,8 @@ local M = {
 local function check_is_word(byte)
     if not byte then
         return false
-    elseif byte == 95 then
-        -- "_"
+    elseif byte == 95 or byte == 45 then
+        -- "_" or "-"
         return true
     elseif 48 <= byte and byte <= 57 then
         -- "0" ~ "9"
@@ -90,8 +90,9 @@ end
 -- -----------------------------------------------------------------------------
 
 local function word_highlight_clear()
-    if w.cursorword_id then
-        vim.fn.matchdelete(w.cursorword_id)
+    local id = w.cursorword_id
+    if id then
+        vim.fn.matchdelete(id)
         w.cursorword_id = nil
     end
 end
