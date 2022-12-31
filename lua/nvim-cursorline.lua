@@ -11,35 +11,12 @@ local M = {
     options = nil,
 }
 
----@param config table
-local function line_highlight_clear(config)
-    if config.no_line_number_highlight then
-        wo.cursorline = false
-    else
-        wo.cursorlineopt = "number"
-    end
-end
-
----@param config table
-local function line_highlight(config)
-    if config.no_line_number_highlight then
-        wo.cursorline = true
-    else
-        wo.cursorlineopt = "both"
-    end
-end
-
-local function word_highlight_clear()
-    if w.cursorword_id then
-        vim.fn.matchdelete(w.cursorword_id)
-        w.cursorword_id = nil
-    end
-end
-
----@param byte integer
+---@param byte? integer
 ---@return boolean
 local function check_is_word(byte)
-    if byte == 95 then
+    if not byte then
+        return false
+    elseif byte == 95 then
         -- "_"
         return true
     elseif 48 <= byte and byte <= 57 then
@@ -60,12 +37,18 @@ end
 ---@param index integer
 ---@return string?
 local function get_word_at(s, index)
-    local bytes = s:byte(1, #s)
-    if not check_is_word(bytes[index]) then
+    local len = #s
+    if len == 0 or not check_is_word(s:byte(index)) then
         return nil
     end
 
-    local st = index
+    local bytes = { s:byte(1, len) }
+
+    if len == 1 then
+        return check_is_word(bytes[1]) and s or nil
+    end
+
+    local st = 1
     for i = index - 1, 1, -1 do
         if not check_is_word(bytes[i]) then
             st = i + 1
@@ -73,8 +56,8 @@ local function get_word_at(s, index)
         end
     end
 
-    local ed = index
-    for i = index + 1, #s do
+    local ed = len
+    for i = index + 1, len do
         if not check_is_word(bytes[i]) then
             ed = i - 1
             break
@@ -84,19 +67,42 @@ local function get_word_at(s, index)
     return s:sub(st, ed)
 end
 
+-- -----------------------------------------------------------------------------
+
+---@param config table
+local function line_highlight_clear(config)
+    if config.no_line_number_highlight then
+        wo.cursorline = false
+    else
+        wo.cursorlineopt = "number"
+    end
+end
+
+---@param config table
+local function line_highlight(config)
+    if config.no_line_number_highlight then
+        wo.cursorline = true
+    else
+        wo.cursorlineopt = "both"
+    end
+end
+
+-- -----------------------------------------------------------------------------
+
+local function word_highlight_clear()
+    if w.cursorword_id then
+        vim.fn.matchdelete(w.cursorword_id)
+        w.cursorword_id = nil
+    end
+end
+
 ---@param config table
 local function word_highlight(config)
-    local column = a.nvim_win_get_cursor(0)[2]
+    local column = a.nvim_win_get_cursor(0)[2] + 1
     local line = a.nvim_get_current_line()
 
     local cursorword = get_word_at(line, column)
     if not cursorword then return end
-
-    if cursorword == w.cursorword then
-        return
-    else
-        w.cursorword = cursorword
-    end
 
     local len = #cursorword
     if len > config.max_length or len < config.min_length then
@@ -111,7 +117,7 @@ end
 
 local DEFAULT_OPTIONS = {
     disable_in_mode = "[vVt]*",
-    default_timeout = 100,
+    default_timeout = 1000,
     cursorline = {
         enable = true,
         timeout = 500,
@@ -126,7 +132,7 @@ local DEFAULT_OPTIONS = {
         max_length = 100,
         hl = { underline = true },
         hl_func = word_highlight,
-        hl_clear_func = word_highlight_clear()
+        hl_clear_func = word_highlight_clear,
     },
 }
 
@@ -145,7 +151,7 @@ function M.set_all_hl(is_highlighted)
                 and config.hl_func
                 or config.hl_clear_func
 
-            if type(func) == "function" then func() end
+            if type(func) == "function" then func(config) end
         end
     end
 end
