@@ -114,6 +114,8 @@ local function word_highlight(config)
         return
     end
 
+    word_highlight_clear()
+
     local pattern = ([[\<%s\>]]):format(cursorword)
     w.cursorword_id = fn.matchadd("CursorWord", pattern, -1)
 end
@@ -224,7 +226,7 @@ function M.setup(options)
             pattern = disable_in_mode .. ":*",
             callback = function()
                 M._is_disabled = false
-                M.set_all_hl(true)
+                M.set_all_hl(false)
             end
         })
     end
