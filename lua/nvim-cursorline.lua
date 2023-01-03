@@ -46,15 +46,13 @@ local function get_word_at(s, index)
         return nil
     end
 
-    local bytes = { s:byte(1, len) }
-
     if len == 1 then
-        return check_is_word(bytes[1]) and s or nil
+        return check_is_word(s:byte(1)) and s or nil
     end
 
     local st = 1
     for i = index - 1, 1, -1 do
-        if not check_is_word(bytes[i]) then
+        if not check_is_word(s:byte(i)) then
             st = i + 1
             break
         end
@@ -62,7 +60,7 @@ local function get_word_at(s, index)
 
     local ed = len
     for i = index + 1, len do
-        if not check_is_word(bytes[i]) then
+        if not check_is_word(s:byte(i)) then
             ed = i - 1
             break
         end
