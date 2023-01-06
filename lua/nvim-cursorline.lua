@@ -8,6 +8,8 @@ local M = {
     _augroup_name = "nvim_cursorline",
     _augroup_id = nil,
     _is_disabled = false,
+    _disable_in_filetype = {},
+    _disable_in_buftype = {},
     options = nil,
 }
 
@@ -122,6 +124,8 @@ end
 
 local DEFAULT_OPTIONS = {
     disable_in_mode = "[vVt]*",
+    disable_in_filetype = {},
+    disable_in_buftype = {},
     default_timeout = 1000,
     cursorline = {
         enable = true,
@@ -161,25 +165,114 @@ function M.set_all_hl(is_highlighted)
     end
 end
 
----@param timeout integer
----@param hl_func fun(config: table)
----@param hl_clear_func fun(config: table)
----@param config table
-function M._setup_autocmd(timeout, hl_func, hl_clear_func, config)
+---@return integer
+function M._get_augroup_id()
     local augroup_id = M._augroup_id
     if not augroup_id then
         augroup_id = vim.api.nvim_create_augroup(M._augroup_name, { clear = true })
         M._augroup_id = augroup_id
     end
 
+    return augroup_id
+end
+
+---@param disable_in_mode string
+function M._setup_auto_disable_for_mode(disable_in_mode)
+    if disable_in_mode == nil then
+        -- pass
+    elseif type(disable_in_mode) ~= "string" then
+        log(
+            "`disable_in_mode` takes only string value (got "
+            .. type(disable_in_mode)
+            .. ")"
+        )
+    elseif #disable_in_mode ~= 0 then
+        vim.api.nvim_create_autocmd("ModeChanged", {
+            group = M._get_augroup_id(),
+            pattern = "*:" .. disable_in_mode,
+            callback = function()
+                M._check_disabled_for_type()
+                M.set_all_hl(false)
+            end
+        })
+        vim.api.nvim_create_autocmd("ModeChanged", {
+            group = M._get_augroup_id(),
+            pattern = disable_in_mode .. ":*",
+            callback = function()
+                M._check_disabled_for_type()
+                M.set_all_hl(false)
+            end
+        })
+    end
+end
+
+---@param field_name string
+---@param types string|string[]
+function M._setup_type_map(field_name, types)
+    local types_type = type(types)
+    if types_type == "string" then
+        types = { types }
+    elseif types_type ~= "table" then
+        return
+    end
+
+    local target_types = {}
+    for _, t in ipairs(types) do
+        target_types[t] = true
+    end
+
+    M[field_name] = target_types
+end
+
+function M._check_disabled_for_type()
+    local target_types = M._disable_in_filetype
+    if type(target_types) ~= "table" then
+        return
+    end
+
+    local cur_buftype = vim.bo.buftype
+    if M._disable_in_buftype[cur_buftype] then
+        M._is_disabled = true
+        return
+    end
+
+    local cur_filetype = vim.bo.filetype
+    local types = vim.fn.split(cur_filetype, "\\.")
+    types[#types + 1] = cur_filetype
+
+    M._is_disabled = false
+    for _, t in ipairs(types) do
+        if M._disable_in_filetype[t] then
+            M._is_disabled = true
+            break
+        end
+    end
+end
+
+---@param timeout integer
+---@param hl_func fun(config: table)
+---@param hl_clear_func fun(config: table)
+---@param config table
+function M._setup_autocmd(timeout, hl_func, hl_clear_func, config)
+    local augroup_id = M._get_augroup_id()
+
     local timer = vim.loop.new_timer()
     local wrapped_hl_func = vim.schedule_wrap(function()
         hl_func(config)
     end)
 
-    au("BufWinEnter", {
+    au("FileType", {
         group = augroup_id,
-        callback = function() hl_clear_func(config) end,
+        callback = function()
+            M._check_disabled_for_type()
+        end
+    })
+    au("BufEnter", {
+        group = augroup_id,
+        callback = function()
+            M._check_disabled_for_type()
+            hl_clear_func(config)
+        end,
     })
     au({ "CursorMoved", "CursorMovedI" }, {
         group = augroup_id,
@@ -197,37 +290,12 @@ end
 function M.setup(options)
     options = vim.tbl_deep_extend("force", DEFAULT_OPTIONS, options or {})
     M.options = options
-
     M._is_disabled = false
 
-    local augroup_id = vim.api.nvim_create_augroup("user.nvim_cursorline", { clear = true })
-    M._augroup_id = augroup_id
+    M._setup_auto_disable_for_mode(options.disable_in_mode)
+    M._setup_type_map("_disable_in_filetype", options.disable_in_filetype)
+    M._setup_type_map("_disable_in_buftype", options.disable_in_buftype)
 
-    local disable_in_mode = options.disable_in_mode
-    if type(disable_in_mode) ~= "string" then
-        log(
-            "`disable_in_mode` takes only string value (got "
-            .. type(disable_in_mode)
-            .. ")"
-        )
-    elseif #disable_in_mode ~= 0 then
-        vim.api.nvim_create_autocmd("ModeChanged", {
-            group = augroup_id,
-            pattern = "*:" .. disable_in_mode,
-            callback = function()
-                M._is_disabled = true
-                M.set_all_hl(false)
-            end
-        })
-        vim.api.nvim_create_autocmd("ModeChanged", {
-            group = augroup_id,
-            pattern = disable_in_mode .. ":*",
-            callback = function()
-                M._is_disabled = false
-                M.set_all_hl(false)
-            end
-        })
-    end
     for group, config in pairs(options) do
         if type(config) == "table" and config.enable then
             local hl = config.hl
