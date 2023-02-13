@@ -10,6 +10,7 @@ local M = {
     _is_disabled = false,
     _disable_in_filetype = {},
     _disable_in_buftype = {},
+    _disable_for_filename = {},
     options = nil,
 }
 
@@ -126,6 +127,7 @@ local DEFAULT_OPTIONS = {
     disable_in_mode = "[vVt]*",
     disable_in_filetype = {},
     disable_in_buftype = {},
+    disable_for_filename = {},
     default_timeout = 1000,
     cursorline = {
         enable = true,
@@ -191,7 +193,7 @@ function M._setup_auto_disable_for_mode(disable_in_mode)
             group = M._get_augroup_id(),
             pattern = "*:" .. disable_in_mode,
             callback = function()
-                M._check_disabled_for_type()
+                M._is_disabled = true
                 M.set_all_hl(false)
             end
         })
@@ -208,7 +210,7 @@ end
 
 ---@param field_name string
 ---@param types string|string[]
-function M._setup_type_map(field_name, types)
+function M._setup_disable_map(field_name, types)
     local types_type = type(types)
     if types_type == "string" then
         types = { types }
@@ -225,26 +227,33 @@ function M._setup_type_map(field_name, types)
 end
 
 function M._check_disabled_for_type()
-    local target_types = M._disable_in_filetype
-    if type(target_types) ~= "table" then
-        return
-    end
+    M._is_disabled = false
 
+    -- buffer type check
     local cur_buftype = vim.bo.buftype
     if M._disable_in_buftype[cur_buftype] then
         M._is_disabled = true
         return
     end
 
+    -- filetype check
     local cur_filetype = vim.bo.filetype
     local types = vim.fn.split(cur_filetype, "\\.")
     types[#types + 1] = cur_filetype
 
-    M._is_disabled = false
     for _, t in ipairs(types) do
         if M._disable_in_filetype[t] then
             M._is_disabled = true
-            break
+            return
+        end
+    end
+
+    -- file name pattern check
+    local bufname = a.nvim_buf_get_name(0) ---@type string
+    for _, patt in ipairs(M._disable_for_filename) do
+        if bufname:match(patt) then
+            M._is_disabled = true
+            return
         end
     end
 end
@@ -265,6 +274,7 @@ function M._setup_autocmd(timeout, hl_func, hl_clear_func, config)
         group = augroup_id,
         callback = function()
             M._check_disabled_for_type()
+            hl_clear_func(config)
         end
     })
     au("BufEnter", {
@@ -293,8 +303,9 @@ function M.setup(options)
     M._is_disabled = false
 
     M._setup_auto_disable_for_mode(options.disable_in_mode)
-    M._setup_type_map("_disable_in_filetype", options.disable_in_filetype)
-    M._setup_type_map("_disable_in_buftype", options.disable_in_buftype)
+    M._setup_disable_map("_disable_in_filetype", options.disable_in_filetype)
+    M._setup_disable_map("_disable_in_buftype", options.disable_in_buftype)
+    M._setup_disable_map("_disable_for_filename", options.disable_for_filename)
 
     for group, config in pairs(options) do
         if type(config) == "table" and config.enable then

@@ -36,6 +36,7 @@ local config = {
     disable_in_mode = "[vVt]*",
     disable_in_filetype = {},
     disable_in_buftype = {},
+    disable_for_filename = {}
     default_timeout = 1000,
     cursorline = {
         enable = true,
@@ -59,8 +60,10 @@ local config = {
 `disable_in_mode` specifies modes where all highlight should be off. This is a
 string pattern used for autocmd, for detail, see `:help ModeChanged` and `:help mode()`.
 
-`disable_in_filetype` and `disable_in_buftype` should be string or a list of strings,
-specifies all filetypes/buftypes where you want this plugin to be disabled.
+`disable_in_filetype`, `disable_in_buftype`, `disable_for_filename` should be
+string or a list of strings, specifies filetypes/buftypes/file name patterns in
+which you want this plugin to be disabled.
+
 
 ## Customize
 
