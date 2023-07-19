@@ -267,6 +267,7 @@ function M._setup_autocmd(timeout, hl_func, hl_clear_func, config)
 
     local timer = vim.loop.new_timer()
     local wrapped_hl_func = vim.schedule_wrap(function()
+        if M._is_disabled then return end
         hl_func(config)
     end)
 
